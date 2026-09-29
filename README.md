@@ -21,3 +21,7 @@ Um die Modelle reproduzieren und simulieren zu können, wird folgende Softwareum
 * **MATLAB / Simulink:** Release R2026a (oder neuer)
 
 
+## Autor
+Johannes Hartmann
+Hochschule für Technik und Wirtschaft (HTW) Berlin
+Studiengang: Elektrotechnik (Master)
