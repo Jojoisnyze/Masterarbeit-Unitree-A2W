@@ -1,0 +1,7 @@
+# MATLAB und Simulink Cache-/Temporärdateien
+*.asv
+*.m~
+slprj/
+*.mex*
+*.mat
+.DS_Store
