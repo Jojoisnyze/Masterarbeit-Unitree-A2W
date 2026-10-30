@@ -1,7 +1,11 @@
-# MATLAB und Simulink Cache-/Temporärdateien
-*.asv
-*.m~
+# Simulink/MATLAB Zwischendateien
 slprj/
-*.mex*
-*.mat
-.DS_Store
+*.slxc
+*.asv
+*.autosave
+# Ergebnisse werden von start_model neu erzeugt
+ergebnisse/
+# Alt und groß
+old/
+unitree_ros-master.zip
+.DS_Store*.zip
