@@ -1,17 +1,20 @@
 function ERG = simuliere_testfaelle(TF, Z1, MONT, modell)
 % SIMULIERE_TESTFAELLE  Startet das Simulink-Modell einmal pro Testfall und
 % sammelt die geloggten Signale in ERG.
-% Pro Testfall werden SIM, REG und die Störung (ts_R_WB, ts_w_B) nur für
-% diesen einen Lauf überschrieben (setVariable). Der Basis-Workspace bleibt.
+% Pro Testfall werden STUFE, PRAEDIKTION, HEAVE, SIM, REG, SEN und die Störung
+% (ts_R_WB, ts_w_B) nur für diesen einen Lauf gesetzt (setVariable).
+% Der Basis-Workspace bleibt unverändert.
 
 load_system(modell);
 
 %% 1. Eingaben pro Testfall vorbereiten
+GEL = par_gelenk(Z1);                            % für den Horizont des Prädiktors
 for k = 1:numel(TF)
     SIM_k = par_sim(TF(k).pose);
     STOER = par_stoerung(TF(k).szenario, SIM_k, v = TF(k).v);
     A2W   = stoerung_a2w((0:SIM_k.Ts:SIM_k.Tend)', STOER);
 
+    % Regler: Grundgerüst und Testfall-Verstärkungen
     REG_k      = par_regler(SIM_k, Z1, MONT);
     REG_k.k_ff = TF(k).k_ff;
     REG_k.Kp   = TF(k).Kp;
@@ -19,19 +22,27 @@ for k = 1:numel(TF)
         % Soll um x gedreht -> Kamera startet mit diesem Fehler
         REG_k.R_WC_des = rot_achse([1;0;0], deg2rad(TF(k).startfehler_grad)) * REG_k.R_WC_des;
     end
-    if isnan(TF(k).tau)
-        SEN_k = par_sensor(SIM_k);                 % Standard-Totzeit
-    else
-        SEN_k = par_sensor(SIM_k, TF(k).tau);      % Totzeitstudie
-    end
 
-    in(k) = Simulink.SimulationInput(modell); %#ok<AGROW>
-    in(k) = in(k).setVariable('SEN', SEN_k);
-    in(k) = in(k).setVariable('STUFE', TF(k).stufe);
+    % Add-on-Schalter (Variant Subsystems im Regler)
+    ADD = addon_einstellen(TF(k).addon);
+
+    % Sensor: ab Stufe 2 Totzeit, ab Stufe 3 zusätzlich Gyro-Rauschen und -Bias
+    tau_k = TF(k).tau;
+    if isnan(tau_k)
+        tau_k = par_sensor(SIM_k).tau;           % Standard-Totzeit
+    end
+    SEN_k = par_sensor(SIM_k, tau_k, rauschen = TF(k).stufe >= 3);
+
+    in(k) = Simulink.SimulationInput(modell);                       %#ok<AGROW>
+    in(k) = in(k).setVariable('STUFE',       TF(k).stufe);         % Variante Sensor/Gelenk
+    in(k) = in(k).setVariable('PRAEDIKTION', ADD.praediktion);     % Variante Add-on 1
+    in(k) = in(k).setVariable('HEAVE',       ADD.heave);           % Variante Add-on 2
     in(k) = in(k).setVariable('SIM', SIM_k);
     in(k) = in(k).setVariable('REG', REG_k);
+    in(k) = in(k).setVariable('SEN', SEN_k);
     in(k) = in(k).setVariable('ts_R_WB', timeseries(A2W.R_WB, A2W.t));
     in(k) = in(k).setVariable('ts_w_B',  timeseries(permute(A2W.w_B, [2 3 1]), A2W.t));
+    in(k) = in(k).setVariable('PRAED', par_praediktion(SEN_k, GEL));   % Horizont passend zur Totzeit dieses Laufs
 end
 
 %% 2. Alle Testfälle simulieren
