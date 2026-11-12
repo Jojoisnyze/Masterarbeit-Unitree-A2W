@@ -6,12 +6,17 @@ function TF = def_testfaelle(AUSWAHL)
 %   AUSWAHL.tau_studie    true: TF3 mit tau = 2...40 ms bei 2 und 4 m/s, je Stufe >= 2
 %   AUSWAHL.addons        z. B. ["keins" "praediktion" "heave" "praediktion+heave"]
 %   AUSWAHL.addon_stufen  in welchen Stufen die Add-ons laufen, z. B. [2 3]
+%   AUSWAHL.hoehe_quellen nur für Add-on 2: ["ideal" "direkt" "kalman"], Standard "ideal"
 % Neuer Basis-Testfall: eine weitere Zeile B(end+1) = tf(...) anhängen.
 arguments
     AUSWAHL struct
 end
 stufen = AUSWAHL.stufen(:)';
 addons = string(AUSWAHL.addons(:))';
+hoehe_quellen = "ideal";                       % Add-on 2: woher kommt die Höhe?
+if isfield(AUSWAHL, 'hoehe_quellen')
+    hoehe_quellen = string(AUSWAHL.hoehe_quellen(:))';
+end
 
 %% Basis-Testfälle (Testprotokoll)
 %            Nr Titel                          Szenario  Pose     k_ff Kp Start[°] v[m/s]
@@ -76,45 +81,52 @@ if AUSWAHL.tau_studie
     end
 end
 
-%% Jeden Lauf je Add-on wiederholen
-% "keins" läuft immer überall. Add-ons nur in AUSWAHL.addon_stufen und nur,
-% wenn überhaupt stabilisiert wird (k_ff = 1).
-% basisname = Name ohne Add-on (für den Referenzvergleich), name = mit Zusatz.
-TF0 = TF;
-TF  = TF0([]);
-for a = addons
-    for k = 1:numel(TF0)
-        t = TF0(k);
-        if a ~= "keins"
-            if ~ismember(t.stufe, AUSWAHL.addon_stufen), continue; end
-            if t.k_ff == 0, continue; end
-        end
-        t.addon     = a;
-        t.basisname = t.name;
-        if a ~= "keins"
-            t.name = t.name + " + " + a;
-        end
-        TF(end+1) = t;                           %#ok<AGROW>
-    end
-end
-end
+  %% Jeden Lauf je Add-on wiederholen
+  % "keins" läuft immer überall. Add-ons nur in AUSWAHL.addon_stufen und nur,
+  % wenn überhaupt stabilisiert wird (k_ff = 1).
+  % Läufe mit Add-on 2 (heave) zusätzlich je Höhenquelle (ideal/direkt/kalman).
+  % basisname = Name ohne Add-on (für den Referenzvergleich), name = mit Zusatz.
+  TF0 = TF;
+  TF  = TF0([]);
+  for a = addons
+      if contains(a, "heave"), quellen = hoehe_quellen; else, quellen = "ideal"; end
+      for qu = quellen
+          for k = 1:numel(TF0)
+              t = TF0(k);
+              if a ~= "keins"
+                  if ~ismember(t.stufe, AUSWAHL.addon_stufen), continue; end
+                  if t.k_ff == 0, continue; end
+              end
+              t.addon        = a;
+              t.hoehe_quelle = qu;
+              t.basisname    = t.name;
+              if a ~= "keins"
+                  t.name = t.name + " + " + a;
+                  if contains(a, "heave"), t.name = t.name + " (" + qu + ")"; end
+              end
+              TF(end+1) = t;                       %#ok<AGROW>
+          end
+      end
+  end
+  end
 
-% ======================= lokale Hilfsfunktion =============================
-function s = tf(nr, titel, szenario, pose, k_ff, Kp, startfehler_grad, v)
-% Ein Testfall mit allen Feldern (Standardwerte für tau, ab_stufe, stufe, gruppe, addon)
-s.nr               = nr;
-s.titel            = titel;
-s.name             = titel;           % wird oben um Stufe, Nummer und Add-on ergänzt
-s.basisname        = titel;           % Name ohne Add-on (Referenzvergleich)
-s.szenario         = szenario;
-s.pose             = pose;
-s.k_ff             = k_ff;
-s.Kp               = Kp;
-s.startfehler_grad = startfehler_grad;   % Kamera startet um x verdreht
-s.v                = v;
-s.tau              = NaN;                % NaN = Standard-Totzeit aus par_sensor
-s.ab_stufe         = 1;                  % kleinste Stufe, in der der Testfall läuft
-s.addon            = "keins";            % Add-on(s) im Regler (addon_einstellen.m)
-s.stufe            = 1;
-s.gruppe           = "basis";
-end
+  % ======================= lokale Hilfsfunktion =============================
+  function s = tf(nr, titel, szenario, pose, k_ff, Kp, startfehler_grad, v)
+  % Ein Testfall mit allen Feldern (Standardwerte für tau, ab_stufe, stufe, gruppe, addon)
+  s.nr               = nr;
+  s.titel            = titel;
+  s.name             = titel;           % wird oben um Stufe, Nummer und Add-on ergänzt
+  s.basisname        = titel;           % Name ohne Add-on (Referenzvergleich)
+  s.szenario         = szenario;
+  s.pose             = pose;
+  s.k_ff             = k_ff;
+  s.Kp               = Kp;
+  s.startfehler_grad = startfehler_grad;   % Kamera startet um x verdreht
+  s.v                = v;
+  s.tau              = NaN;                % NaN = Standard-Totzeit aus par_sensor
+  s.ab_stufe         = 1;                  % kleinste Stufe, in der der Testfall läuft
+  s.addon            = "keins";            % Add-on(s) im Regler (addon_einstellen.m)
+  s.hoehe_quelle     = "ideal";            % Add-on 2: Variante der Höhenschätzung
+  s.stufe            = 1;
+  s.gruppe           = "basis";
+  end

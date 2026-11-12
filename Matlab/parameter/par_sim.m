@@ -6,6 +6,7 @@ arguments
 end
 SIM.Ts   = 0.002;   % Abtastzeit des Reglers [s] (500 Hz). Zielhardware noch offen
 SIM.Tend = 30;      % Simulationsdauer [s]
+SIM.g    = 9.81;    % Erdbeschleunigung [m/s^2] (für Beschleunigungsmesser und Kalman)
 
 % Grundpose q0 [rad]: q2+q3+q4 = 0 -> Kamera waagerecht, q4 in Bereichsmitte,
 % alle Gelenke >= 69° vom Anschlag, sigma_min(J_w) = 1

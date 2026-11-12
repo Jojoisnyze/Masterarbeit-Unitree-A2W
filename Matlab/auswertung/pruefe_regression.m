@@ -1,4 +1,4 @@
-function pruefe_regression(ERG, GEL)
+function pruefe_regression(ERG, GEL, REG)
 % PRUEFE_REGRESSION  Automatische Prüfung nach jedem Testlauf.
 % Geprüft wird nur, was gerechnet wurde (AUSWAHL in start_model.m).
 % Stufe 1 (ideal): Die Mathematik muss exakt stimmen, sonst Abbruch.
@@ -11,6 +11,8 @@ function pruefe_regression(ERG, GEL)
 % Alle Stufen: TF9 ohne Add-on 2: Höhenfehler = Hub, RMS = A/sqrt(2)
 % Add-on 1: Stufe 2, TF6: Restfehler nur noch aus PT1 und Rundung des Horizonts
 % Add-on 2: Stufe 1: Höhe >= 98 % weniger, Orientierung unverändert (Vorrang)
+% Add-on 2: Stufe 2, TF9: h/z = 1 - G_j*D*(jw + K_h)/(jw + K_h*G_j),
+%           G_j = Gelenk (PT1 + halbe Abtastung), D = Messverzögerung der Höhe
 GRENZE_RED   = 99.9;   % [%]
 GRENZE_RED_H = 98;     % [%] Add-on 2 in Stufe 1: Höhe muss fast vollständig verschwinden
 GRENZE_PT1   = 0.01;   % [°]
@@ -66,6 +68,28 @@ for k = 1:numel(ERG)
         fprintf('%s: Höhe %.3f mm (%.2f %% weniger), Orientierung ok\n', ...
                 E.tf.name, E.rms_hoehe, E.reduktion_hoehe);
         n = n + 1;
+        continue
+    end
+    
+    if E.tf.addon == "heave" && E.tf.stufe == 2 && E.tf.nr == 9
+        % Hub-Sinus, geschlossener Kreis aus Aufschaltung, Rückführung K_h und Gelenk
+        S   = par_stoerung("heave", par_sim("vorn"));
+        A   = 1000 * S.sin.A(4,1);  s = 1j * 2*pi * S.sin.f(4,1);
+        HOE = par_hoehe(par_sim("vorn"));
+        G_j = exp(-s*SEN2.Ts/2) / (1 + s*GEL.T);
+        tol = 0.10;
+        switch E.tf.hoehe_quelle
+            case "ideal",  D = 1;
+            case "direkt", D = exp(-s * HOE.N_bein * HOE.Ts);
+            case "kalman", D = 1;  tol = 0.25;      % Kalman holt die Totzeit fast ganz zurück -> nahe ideal
+            otherwise,     D = NaN;
+        end
+        if ~isnan(D)
+            soll = A * abs(1 - G_j*D*(s + REG.K_h)/(s + REG.K_h*G_j)) / sqrt(2);
+            pruefe(E.rms_hoehe, soll, tol, ...
+                   "S2 TF9 + heave (" + E.tf.hoehe_quelle + ") Höhe (RMS)", "mm");
+            n = n + 1;
+        end
         continue
     end
 

@@ -32,6 +32,7 @@ end
 
 STOER.szenario = szenario;
 STOER.opt      = opt;                  % Einstellungen merken (für Plots/Auswertung)
+STOER.g        = SIM.g;                % Erdbeschleunigung (Beschleunigungsmesser)
 STOER.T_ein    = 1.0;                  % weiches Einblenden [s]
 zufall = RandStream('mt19937ar', 'Seed', 42);   % reproduzierbar
 

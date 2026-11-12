@@ -43,7 +43,14 @@ for k = 1:numel(TF)
     in(k) = in(k).setVariable('ts_R_WB', timeseries(A2W.R_WB, A2W.t));
     in(k) = in(k).setVariable('ts_w_B',  timeseries(permute(A2W.w_B, [2 3 1]), A2W.t));
     in(k) = in(k).setVariable('PRAED', par_praediktion(SEN_k, GEL));   % Horizont passend zur Totzeit dieses Laufs
+    % Add-on 2: Höhenquelle (Variant "Höhenschätzung") und Sensor Beinhöhe
+    QUELLEN = ["ideal" "direkt" "kalman"];                       % 1, 2, 3
+    in(k) = in(k).setVariable('HOEHE_QUELLE', find(QUELLEN == TF(k).hoehe_quelle));
+    HOE_k = par_hoehe(SIM_k, rauschen = TF(k).stufe >= 3);
+    in(k) = in(k).setVariable('HOE', HOE_k);
+    in(k) = in(k).setVariable('KAL', par_kalman(SIM_k, SEN_k, HOE_k, verzoegert = TF(k).stufe >= 2));
     in(k) = in(k).setVariable('ts_hub_B', timeseries([A2W.z, A2W.dz], A2W.t));
+    in(k) = in(k).setVariable('ts_f_B',   timeseries(permute(A2W.f_B, [2 3 1]), A2W.t));
 end
 
 %% 2. Alle Testfälle simulieren
@@ -75,6 +82,11 @@ for k = 1:numel(TF)
     E.rms_hoehe_hund  = sqrt(mean(E.hoehe_hund(i).^2));     % [mm] Arm steif
     E.reduktion_hoehe = 100 * (1 - E.rms_hoehe / E.rms_hoehe_hund);
     if E.rms_hoehe_hund == 0, E.reduktion_hoehe = NaN; end
+    % Add-on 2: Wie gut kennt der Regler die Höhe? (geschätzt - wahr)
+    hub   = auf_zeit(out(k), 'hub_B',   E.t);              % Nx2 wahr [m, m/s]
+    hub_m = auf_zeit(out(k), 'hub_B_m', E.t);              % Nx2 beim Regler
+    E.rms_schaetz_z  = 1000 * sqrt(mean((hub_m(i,1) - hub(i,1)).^2));   % [mm]
+    E.rms_schaetz_dz = 1000 * sqrt(mean((hub_m(i,2) - hub(i,2)).^2));   % [mm/s]
 
     ERG(k) = E;                                        %#ok<AGROW>
 end
@@ -87,4 +99,14 @@ ts = o.logsout.get(name).Values;
 t  = ts.Time;
 d  = squeeze(ts.Data);
 if size(d, 1) ~= numel(t), d = d.'; end
+end
+
+
+% ---------------------------------------------------------------------------
+function d = auf_zeit(o, name, t)
+% Holt ein geloggtes Signal und bringt es auf die Zeitbasis t (Haltewert).
+% Nötig, weil abgetastete Signale nur zu ihren Abtastzeitpunkten geloggt werden.
+[ts, d] = signal(o, name);
+[ts, iu] = unique(ts, 'last');
+d = interp1(ts, d(iu, :), t, 'previous', 'extrap');
 end

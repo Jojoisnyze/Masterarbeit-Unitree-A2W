@@ -12,7 +12,7 @@ for szen = ["fahren", "laufen"]
     %% 1. + 2. Konsistenz an 200 zufälligen Zeitpunkten
     zufall = RandStream('mt19937ar', 'Seed', 7);
     t_test = 0.5*STOER.T_ein + rand(zufall, 200, 1) * (SIM.Tend - STOER.T_ein);
-    fehler_w = 0;  fehler_z = 0;
+    fehler_w = 0;  fehler_z = 0;  fehler_a = 0;  fehler_f = 0;
     for k = 1:numel(t_test)
         A = stoerung_a2w(t_test(k) + [-h; 0; h], STOER);
         R = A.R_WB(:,:,2);
@@ -20,9 +20,14 @@ for szen = ["fahren", "laufen"]
         W = R' * (A.R_WB(:,:,3) - A.R_WB(:,:,1)) / (2*h);    % [w_B] = R' dR/dt
         fehler_w = max(fehler_w, norm([W(3,2); W(1,3); W(2,1)] - A.w_B(2,:)'));
         fehler_z = max(fehler_z, abs((A.z(3) - A.z(1))/(2*h) - A.dz(2)));
+        fehler_a = max(fehler_a, abs((A.dz(3) - A.dz(1))/(2*h) - A.ddz(2)));
+        % Beschleunigungsmesser: R_WB*f_B muss genau a_W + g*e_z ergeben (Meng Gl. 43)
+        fehler_f = max(fehler_f, norm(R * A.f_B(2,:)' - [0; 0; A.ddz(2) + STOER.g]));
     end
     assert(fehler_w < 1e-6, 'w_B passt nicht zu R_WB (%s)', szen);
     assert(fehler_z < 1e-6, 'dz passt nicht zu z (%s)', szen);
+    assert(fehler_a < 1e-5,  'ddz passt nicht zu dz (%s)', szen);
+    assert(fehler_f < 1e-12, 'f_B passt nicht zu R_WB und ddz (%s)', szen);
 
     %% 3. Kennwerte (ohne Einblendphase)
     A   = stoerung_a2w((0:SIM.Ts:SIM.Tend)', STOER);
@@ -37,6 +42,8 @@ for szen = ["fahren", "laufen"]
             max(abs(w)));
     fprintf('         max |w_B - Euler-Raten| = %.1f °/s\n', ...
             rad2deg(max(vecnorm(A.w_B(i,:) - A.deul(i,:), 2, 2))));
+    fprintf('         Hub: max |ddz| = %.1f m/s^2 (%.2f g),  Konsistenz ddz: %.1e m/s^2\n', ...
+        max(abs(A.ddz(i))), max(abs(A.ddz(i)))/STOER.g, fehler_a);
 end
 
 %% 4. Einzelachse: nur Rollen -> nur w_x

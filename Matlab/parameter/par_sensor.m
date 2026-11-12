@@ -32,4 +32,20 @@ if ~SEN.rauschen
 end
 SEN.sigma_g = SEN.N_g * sqrt(1/SEN.Ts);          % Standardabweichung je Abtastwert [rad/s]
 SEN.var_g   = SEN.sigma_g^2 * ones(3,1);         % Varianz für den Random-Number-Block
+
+%% Beschleunigungsmesser (Add-on 2): Rauschen, Bias, Anfangswert im Delay
+% Misst die spezifische Kraft im Rumpf-Frame: f_B = R_WB'*(a_W + g*e_z) + b_a + n_a
+% (Meng et al. 2026, Gl. 43). Rauschdichte typischer MEMS-IMUs ca. 175 µg/sqrt(Hz).
+SEN.N_a    = 175e-6 * SIM.g;                     % Rauschdichte [m/s^2/sqrt(Hz)]    (PLATZHALTER)
+SEN.bias_a = [0.02; -0.02; 0.03];                % Restbias nach Kalibrierung [m/s^2] (PLATZHALTER)
+SEN.seed_a = [21; 22; 23];                       % reproduzierbares Rauschen je Achse
+if ~SEN.rauschen
+    SEN.N_a    = 0;
+    SEN.bias_a = zeros(3,1);
+end
+SEN.sigma_a = SEN.N_a * sqrt(1/SEN.Ts);          % Standardabweichung je Abtastwert [m/s^2]
+SEN.var_a   = SEN.sigma_a^2 * ones(3,1);         % Varianz für den Random-Number-Block
+% Anfangswert im Delay: Hund steht -> f_B = [0; 0; g]. Ohne das würde der Sensor
+% in den ersten N Schritten 0 melden, also scheinbar freien Fall (-9,81 m/s^2).
+SEN.f0      = repmat([0; 0; SIM.g], 1, 1, SEN.N); % 3x1xN wie SEN.R0
 end
