@@ -43,6 +43,7 @@ for k = 1:numel(TF)
     in(k) = in(k).setVariable('ts_R_WB', timeseries(A2W.R_WB, A2W.t));
     in(k) = in(k).setVariable('ts_w_B',  timeseries(permute(A2W.w_B, [2 3 1]), A2W.t));
     in(k) = in(k).setVariable('PRAED', par_praediktion(SEN_k, GEL));   % Horizont passend zur Totzeit dieses Laufs
+    in(k) = in(k).setVariable('ts_hub_B', timeseries([A2W.z, A2W.dz], A2W.t));
 end
 
 %% 2. Alle Testfälle simulieren
@@ -59,6 +60,8 @@ for k = 1:numel(TF)
     [~,   E.e_W]    = signal(out(k), 'e_W_grad');      % Nx3 [°]
     [~,   E.q]      = signal(out(k), 'q');             % Nx6 [rad]
     [~,   E.dq]     = signal(out(k), 'dq_cmd');        % Nx6 [rad/s]
+    [~,   E.hoehe]      = signal(out(k), 'hoehe_mm');        % [mm]
+    [~,   E.hoehe_hund] = signal(out(k), 'hoehe_hund_mm');   % [mm]
 
     i = E.t >= 1;                                      % ohne Einblendphase
     E.rms_fehler = sqrt(mean(E.fehler(i).^2));
@@ -68,6 +71,10 @@ for k = 1:numel(TF)
     E.reduktion  = 100 * (1 - E.rms_fehler / E.rms_hund);   % wie Roncone: % weniger
     if E.rms_hund == 0, E.reduktion = NaN; end
     E.max_dq     = rad2deg(max(abs(E.dq), [], 'all'));
+    E.rms_hoehe       = sqrt(mean(E.hoehe(i).^2));          % [mm] mit Regler
+    E.rms_hoehe_hund  = sqrt(mean(E.hoehe_hund(i).^2));     % [mm] Arm steif
+    E.reduktion_hoehe = 100 * (1 - E.rms_hoehe / E.rms_hoehe_hund);
+    if E.rms_hoehe_hund == 0, E.reduktion_hoehe = NaN; end
 
     ERG(k) = E;                                        %#ok<AGROW>
 end

@@ -43,6 +43,8 @@ test_z1_jacobian(Z1, MONT, urdfDatei);
 test_stoerung(SIM);
 test_regler(Z1, MONT, SIM, REG);
 test_praediktion(A2W, SIM, PRAED);
+test_ee_hoehe(Z1, MONT, SIM);
+test_addon_hoehe(Z1, MONT, SIM, REG);
 
 %% 7. Ergebnisordner vorbereiten, Störung anzeigen und speichern
 ORDNER = fullfile(root, 'ergebnisse');
@@ -61,6 +63,7 @@ speichere_figur(figs(2), ORDNER, "00_Stoerung_Drehraten");
 %% 9. Signale für Simulink (From Workspace)
 ts_R_WB = timeseries(A2W.R_WB, A2W.t);                    % 3x3xN, Zeit in letzter Dim.
 ts_w_B  = timeseries(permute(A2W.w_B, [2 3 1]), A2W.t);    % 3x1xN (Spaltenvektor)
+ts_hub_B = timeseries([A2W.z, A2W.dz], A2W.t);           % Nx2: Hub z_B [m], dz_B [m/s]
 
 %% 10. Simulink-Modell öffnen
 % Schalter für das manuelle Arbeiten im Modell (die Testläufe setzen sie selbst):
@@ -76,12 +79,12 @@ open_system(modell);
 
 %% 11. Auswahl: was soll simuliert werden?
 TESTLAUF             = true;      % false: nur Modell öffnen, nichts simulieren
-AUSWAHL.stufen       = [ 2 3];   % welche Stufen rechnen
-AUSWAHL.testfaelle   = [3 6];        % [] = alle Basis-Testfälle, z. B. [3 6] = nur TF3 und TF6
+AUSWAHL.stufen       = [1 2 3];   % welche Stufen rechnen
+AUSWAHL.testfaelle   = [3 5 9];        % [] = alle Basis-Testfälle, z. B. [3 6] = nur TF3 und TF6
 AUSWAHL.v_studie     = false;      % TF3 bei v = 1...5 m/s, Posen vorn/seite, je Stufe
 AUSWAHL.tau_studie   = false;      % TF3 mit tau = 2...40 ms, je Stufe >= 2
-AUSWAHL.addons       = ["keins" "praediktion"];   % später: ["keins" "praediktion" "heave" "praediktion+heave"]
-AUSWAHL.addon_stufen = [2 3];     % Add-ons nur in diesen Stufen
+AUSWAHL.addons       = ["keins" "heave"];   % später: ["keins" "praediktion" "heave" "praediktion+heave"]
+AUSWAHL.addon_stufen = [1 2 3];     % Add-ons nur in diesen Stufen
 AUSWAHL.referenz     = fullfile(root, "referenz", "v0.3", "93_Kennwerte.csv");  % "" = kein Vergleich
 DETAILS_ANZEIGEN     = false;     % true: auch die Detail-Figures je Testfall öffnen
 % Beispiel nur ein einziger Lauf:
@@ -96,3 +99,13 @@ if TESTLAUF
     vergleiche_referenz(ERG, AUSWAHL.referenz, ORDNER);
     pruefe_regression(ERG, GEL);   % nach den Plots, damit du bei Abbruch nachsehen kannst
 end
+
+  %% 12. Add-on 2: Höhe des Endeffektors
+  if TESTLAUF
+      fprintf('\nHöhe des Endeffektors, RMS ab 1 s:\n');
+      for k = 1:numel(ERG)
+          fprintf('  %-50s  Arm steif %6.1f mm   geregelt %6.2f mm   Orient. %6.3f°   max|dq| %4.0f °/s\n', ...
+              ERG(k).tf.name, ERG(k).rms_hoehe_hund, ERG(k).rms_hoehe, ...
+              ERG(k).rms_fehler, ERG(k).max_dq);
+      end
+  end

@@ -15,6 +15,7 @@ function STOER = par_stoerung(szenario, SIM, opt)
 %   'kombi'               alle drei Testsinus gleichzeitig
 %   'fahren'              Radmodus: Gelände ISO 8608 + Schlaglöcher + Hang
 %   'laufen'              Laufmodus (Trab): Gang + Rauschen + Fußaufsetzer
+%   'heave'               nur Hub: 2 cm bei 2 Hz (Test Add-on 2)
 %
 % Vorzeichen: x vorne, y links, z oben. phi > 0: linke Seite hoch,
 %             theta > 0: Nase runter, psi > 0: nach links drehen.
@@ -114,6 +115,11 @@ switch STOER.szenario
         %    Konstante = Sinus mit f = 0 und Phase pi/2  (sin(pi/2) = 1, Ableitung 0)
         hang = [deg2rad(opt.quer_grad); -deg2rad(opt.steigung_grad); 0; 0];
         STOER = sinus_hinzu(STOER, hang, zeros(4,1), pi/2*ones(4,1));
+
+    case "heave"
+        % ---- Testsinus Federn (Add-on 2): nur Hub, keine Drehung ----
+        % 2 cm aus Modellgrundlagen ("2 cm Federn"), 2 Hz = Schrittfrequenz Trab
+        STOER = sinus_hinzu(STOER, [0; 0; 0; 0.02], [0; 0; 0; 2.0], zeros(4,1));
 
     case "laufen"
         % ---- PLATZHALTER Trab -------------------------------------------------

@@ -23,6 +23,7 @@ B(5) = tf(5, "Blick zur Seite",               "fahren", "seite", 1,   3,  0,    
 B(6) = tf(6, "Totzeit-Test: Sinus 1 Hz",      "roll",   "vorn",  1,   0,  0,       2.0);
 B(7) = tf(7, "Gyro-Bias mit Rückführung",     "aus",    "vorn",  1,   3,  0,       2.0);
 B(8) = tf(8, "Gyro-Bias ohne Rückführung",    "aus",    "vorn",  1,   0,  0,       2.0);
+B(9) = tf(9, "Federn-Test: Hub 2 cm, 2 Hz",   "heave",  "vorn",  1,   3,  0,       2.0);
 B(7).ab_stufe = 3;      % Bias gibt es erst ab Stufe 3
 B(8).ab_stufe = 3;
 

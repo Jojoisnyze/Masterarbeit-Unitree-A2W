@@ -8,10 +8,14 @@ function pruefe_regression(ERG, GEL)
 %          G(jw) = exp(-jw*tau_eff) / (1 + jw*T),  tau_eff = N*Ts + Ts/2
 % Stufe 3: TF7 Gyro-Bias mit Rückführung: Endwert e = |b| / Kp
 %          TF8 Gyro-Bias ohne Rückführung: Drift  e(t) = |b| * (t - tau)
-GRENZE_RED  = 99.9;   % [%]
-GRENZE_PT1  = 0.01;   % [°]
-GRENZE_S2   = 0.10;   % zulässige relative Abweichung Totzeit-Test
-GRENZE_BIAS = 0.15;   % zulässige relative Abweichung Bias-Tests (Rauschen streut)
+% Alle Stufen: TF9 ohne Add-on 2: Höhenfehler = Hub, RMS = A/sqrt(2)
+% Add-on 1: Stufe 2, TF6: Restfehler nur noch aus PT1 und Rundung des Horizonts
+% Add-on 2: Stufe 1: Höhe >= 98 % weniger, Orientierung unverändert (Vorrang)
+GRENZE_RED   = 99.9;   % [%]
+GRENZE_RED_H = 98;     % [%] Add-on 2 in Stufe 1: Höhe muss fast vollständig verschwinden
+GRENZE_PT1   = 0.01;   % [°]
+GRENZE_S2    = 0.10;   % zulässige relative Abweichung Totzeit-Test
+GRENZE_BIAS  = 0.15;   % zulässige relative Abweichung Bias-Tests (Rauschen streut)
 
 SEN2 = par_sensor(par_sim("vorn"));                  % Standard-Totzeit, ohne Rauschen
 SEN3 = par_sensor(par_sim("vorn"), rauschen = true); % mit Bias
@@ -25,8 +29,10 @@ n = 0;
 for k = 1:numel(ERG)
     E = ERG(k);
     if E.tf.gruppe ~= "basis", continue; end
-        if E.tf.addon == "praediktion" && E.tf.stufe == 2 && E.tf.nr == 6
-        % Add-on 1: Sinus wird exakt vorhergesagt -> nur noch PT1 und Rundung von h bleiben
+
+    % ---------------- Add-on 1: Prädiktion ----------------
+    if E.tf.addon == "praediktion" && E.tf.stufe == 2 && E.tf.nr == 6
+        % Sinus wird exakt vorhergesagt -> nur noch PT1 und Rundung von h bleiben
         S     = par_stoerung("roll", par_sim("vorn"));
         A     = rad2deg(S.sin.A(1,1));
         w     = 2*pi * S.sin.f(1,1);
@@ -40,7 +46,41 @@ for k = 1:numel(ERG)
         n = n + 1;
         continue
     end
+
+    % ---------------- Add-on 2: Höhe im Nullraum ----------------
+    if E.tf.addon == "heave" && E.tf.stufe == 1
+        % ideale Höhe, ideale Gelenke: Höhe fast vollständig weg,
+        % Orientierung unverändert (Vorrang, J_w*N = 0)
+        if E.rms_hund == 0
+            ok_or = E.rms_fehler < 1e-3;                  % TF9: keine Drehung -> Fehler ~ 0
+        else
+            ok_or = E.reduktion >= GRENZE_RED;
+        end
+        if ~ok_or
+            error('REGRESSION Add-on 2: Orientierung in "%s" verschlechtert.', E.tf.name);
+        end
+        if E.reduktion_hoehe < GRENZE_RED_H
+            error('REGRESSION Add-on 2: "%s" Höhe nur %.2f %% reduziert (Soll >= %d %%).', ...
+                  E.tf.name, E.reduktion_hoehe, GRENZE_RED_H);
+        end
+        fprintf('%s: Höhe %.3f mm (%.2f %% weniger), Orientierung ok\n', ...
+                E.tf.name, E.rms_hoehe, E.reduktion_hoehe);
+        n = n + 1;
+        continue
+    end
+
     if E.tf.addon ~= "keins", continue; end      % übrige Theorie-Tests gelten für das Grundgerüst
+
+    % ---------------- Grundgerüst ----------------
+    if E.tf.nr == 9
+        % Ohne Höhenausgleich bleibt der Hub vollständig stehen.
+        % Keine Drehung -> Arm bewegt sich nicht -> Höhenfehler = z_B, RMS = A/sqrt(2)
+        S    = par_stoerung("heave", par_sim("vorn"));
+        soll = 1000 * S.sin.A(4,1) / sqrt(2);                 % [mm]
+        pruefe(E.rms_hoehe, soll, 0.02, "S" + E.tf.stufe + " TF9 Höhe ohne Ausgleich (RMS)", "mm");
+        n = n + 1;
+        continue
+    end
 
     if E.tf.stufe == 1 && E.tf.k_ff == 1 && E.tf.szenario ~= "aus"
         if E.reduktion < GRENZE_RED
@@ -85,10 +125,12 @@ fprintf('Regressionstest bestanden: %d Läufe geprüft.\n', n);
 end
 
 % ---------------------------------------------------------------------------
-function pruefe(ist, soll, grenze, text)
+function pruefe(ist, soll, grenze, text, einheit)
 % Vergleicht Simulation mit Theorie, gibt beides aus, bricht bei zu großer Abweichung ab
+if nargin < 5, einheit = "°"; end
 rel = abs(ist - soll) / soll;
-fprintf('%s: Simulation %.4f°, Theorie %.4f°, Abweichung %.1f %%\n', text, ist, soll, 100*rel);
+fprintf('%s: Simulation %.4f %s, Theorie %.4f %s, Abweichung %.1f %%\n', ...
+        text, ist, einheit, soll, einheit, 100*rel);
 if rel > grenze
     error('%s weicht um %.0f %% von der Theorie ab.', text, 100*rel);
 end
